@@ -28,6 +28,15 @@ var (
 type Swarm struct {
 	client *http.Client
 	url    *url.URL
+	network string
+}
+
+type networksettings struct {
+	IpAddress string `json:"IPAddress"`
+}
+
+type networks struct {
+	Networks map[string]networksettings `json:"Networks"`
 }
 
 // container represents a container item in /containers/json Endpoint of Docker
@@ -37,6 +46,7 @@ type container struct {
 	Ports  []containerPort   `json:"Ports"`
 	Names  []string          `json:"Names"`
 	Labels map[string]string `json:"Labels"`
+	NetworkSettings networks `json:"NetworkSettings"`
 }
 
 // containerPort represents a port declaration item as it appears in Docker
@@ -50,7 +60,7 @@ type containerPort struct {
 
 // New constructs a client to access a Docker Swarm cluster state. If the cluster
 // does not use TLS, tlsConfig must be nil.
-func New(swarmUrl string, tlsConfig *tls.Config) (*Swarm, error) {
+func New(swarmUrl string, tlsConfig *tls.Config, network string) (*Swarm, error) {
 	u, err := url.Parse(swarmUrl)
 	if err != nil {
 		return nil, err
@@ -73,6 +83,7 @@ func New(swarmUrl string, tlsConfig *tls.Config) (*Swarm, error) {
 	return &Swarm{
 		client: cl,
 		url:    u,
+		network: network,
 	}, nil
 }
 
@@ -110,7 +121,7 @@ func (s *Swarm) Tasks() (task.ClusterState, error) {
 		return nil, err
 	}
 
-	out, err := containersToTasks(ll)
+	out, err := containersToTasks(ll, s.network)
 	if err != nil {
 		return nil, err
 	}
@@ -147,13 +158,24 @@ func (s *Swarm) listContainers() ([]container, error) {
 
 // containersToTasks strips out unnecessary info from Container type and
 // makes task.Task instances out of given list.
-func containersToTasks(ll []container) ([]task.Task, error) {
+func containersToTasks(ll []container, network string) ([]task.Task, error) {
 	out := make([]task.Task, len(ll))
 	for i, c := range ll {
-		ports, err := mappedPorts(c.Ports)
+
+		var ports []task.Port
+		var err error
+
+		// If network is specified, we want to use the ip address from the specified network, plus any internal ports
+		if network != "" {
+			ports, err = privatePorts(c, network)
+		} else {
+			ports, err = mappedPorts(c.Ports)
+		}
+
 		if err != nil {
 			return nil, fmt.Errorf("error parsing ports for container %s (%v): %v", c.Id, c.Names, err)
 		}
+
 		srv, dom := dnsPartsFromLabels(c.Labels)
 		out[i] = task.Task{
 			Id:      c.Id,
@@ -189,6 +211,30 @@ func dnsPartsFromLabels(labels map[string]string) (string, string) {
 		project = ""
 	}
 	return service, project
+}
+
+func privatePorts(c container, network string) ([]task.Port, error) {
+	out := make([]task.Port, 0)
+
+	if _, exists := c.NetworkSettings.Networks[network]; !exists {
+		return out, nil
+	}
+
+	networksettings := c.NetworkSettings.Networks[network]
+	ip := net.ParseIP(networksettings.IpAddress)
+	if ip == nil {
+		return []task.Port{}, fmt.Errorf("cannot parse IP '%s'", networksettings.IpAddress)
+	}
+
+	for _, p := range c.Ports {
+		out = append(out, task.Port{
+			HostIP:   ip,
+			HostPort: p.PrivatePort,
+			Proto:    p.Type,
+		})
+	}
+
+	return out, nil
 }
 
 // mappedPorts returns only list of ports mapped to the host from a list of

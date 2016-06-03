@@ -38,6 +38,7 @@ type Options struct {
 	refreshInterval time.Duration
 	refreshTimeout  time.Duration
 	stalenessPeriod time.Duration
+	network         string
 }
 
 func (o *Options) String() string {
@@ -114,6 +115,11 @@ func main() {
 			Value: defaultStalenessPeriod,
 			Usage: "how long to serve stale DNS records before exiting",
 		},
+		cli.StringFlag{
+			Name:  "network",
+			Value: "",
+			Usage: "the name of a private docker network or overlay",
+		},
 	}
 	cmd.Action = func(c *cli.Context) {
 		opts := &Options{
@@ -127,6 +133,7 @@ func main() {
 			refreshInterval: c.Duration("refresh"),
 			refreshTimeout:  c.Duration("refresh-timeout"),
 			stalenessPeriod: c.Duration("staleness"),
+			network:         c.String("network"),
 		}
 		if err := validate(opts); err != nil {
 			log.Fatalf("Error: %v", err)
@@ -193,7 +200,7 @@ func serve(opt *Options) {
 	}
 
 	rrs := rrstore.New()
-	cluster, err := swarm.New(opt.swarmAddr, dockerTLS)
+	cluster, err := swarm.New(opt.swarmAddr, dockerTLS, opt.network)
 	if err != nil {
 		log.Fatalf("Error initializing Swarm: %v", err)
 	}

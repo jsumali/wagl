@@ -11,6 +11,100 @@ import (
 	"github.com/ahmetalpbalkan/wagl/task"
 )
 
+func TestGetTasksPrivate(t *testing.T) {
+	srv := testServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// implement partial /info endpoint
+		b := `[
+			{
+				"Id": "nginx",
+				"Labels": {
+					"dns.domain":  "bilLING",
+					"dns.service": "API"
+				},
+				"Ports": [
+					{
+						"IP":          "192.168.99.103",
+						"PrivatePort": 80,
+						"PublicPort":  8000,
+						"Type":        "tcp"
+					},
+					{
+						"IP":          "",
+						"PrivatePort": 443,
+						"PublicPort":  0,
+						"Type":        "tcp"
+					}
+				],
+				"NetworkSettings": {
+					"Networks": {
+						"dev-net": {
+							"Aliases": null,
+							"EndpointID": "995ee8a218705854e376f275240b77c6432b7c0930fbd861a08472ef84c238c3",
+							"Gateway": "",
+							"GlobalIPv6Address": "",
+							"GlobalIPv6PrefixLen": 0,
+							"IPAMConfig": null,
+							"IPAddress": "10.25.0.8",
+							"IPPrefixLen": 24,
+							"IPv6Gateway": "",
+							"Links": null,
+							"MacAddress": "02:42:0a:19:00:08",
+							"NetworkID": ""
+						}
+					}
+				}
+			},
+			{
+				"Id": "no-ports-but-has-labels",
+				"Labels": {
+					"dns.domain":  "billing",
+					"dns.service": "db"
+				}
+			}
+		]`
+		w.Write([]byte(b))
+	}))
+	defer srv.Close()
+
+	sw, err := New(srv.URL, nil, "dev-net")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	out, err := sw.Tasks()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected := task.ClusterState([]task.Task{
+		{
+			Id:      "nginx",
+			Service: "api",
+			Domain:  "billing",
+			Ports: []task.Port{{
+					HostIP:   net.IPv4(10, 25, 0, 8),
+					HostPort: 80,
+					Proto:    "tcp",
+				},
+				{
+					HostIP:   net.IPv4(10, 25, 0, 8),
+					HostPort: 443,
+					Proto:    "tcp",
+				},
+			},
+		},
+		{
+			Id:      "no-ports-but-has-labels",
+			Service: "db",
+			Domain:  "billing",
+			Ports:   []task.Port{},
+		},
+	})
+	if !reflect.DeepEqual(out, expected) {
+		t.Fatalf("got wrong value.\nexpected: %#v\ngot:%#v", expected, out)
+	}
+}
+
 func TestGetTasks(t *testing.T) {
 	srv := testServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// implement partial /info endpoint
@@ -48,7 +142,7 @@ func TestGetTasks(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	sw, err := New(srv.URL, nil)
+	sw, err := New(srv.URL, nil, "")
 	if err != nil {
 		t.Fatal(err)
 	}
