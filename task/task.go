@@ -6,6 +6,11 @@ import (
 	"net"
 )
 
+const (
+	ExternalPort = 0
+	InternalPort = 1
+)
+
 // ClusterState describes the current state of the cluster.
 type ClusterState []Task
 
@@ -22,6 +27,7 @@ type Port struct {
 	HostIP   net.IP
 	HostPort int
 	Proto    string
+	Type     int // internal, external, see const above
 }
 
 func (p Port) String() string {

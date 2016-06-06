@@ -59,15 +59,33 @@ func getTaskRRs(domain string, t task.Task) []rrEntry {
 		tail = dns.Fqdn(t.Domain) + tail
 	}
 
-	// A record ("A service.domain. IP")
-	ip := t.Ports[0].HostIP.String() // use first port mapping's IP addr
-	l = append(l, rrEntry{dns.TypeA, fmt.Sprintf("%s.%s", t.Service, tail), ip})
+	var includedIps map[string]bool = make(map[string]bool)
+
+	for _, p := range t.Ports {
+		ip := p.HostIP.String()
+
+		if _, present := includedIps[ip]; present {
+			continue
+		}
+
+		if p.Type == task.InternalPort {
+			l = append(l, rrEntry{dns.TypeA, fmt.Sprintf("%s.%s.%s", t.Service, "internal", tail), ip})
+		} else {
+			l = append(l, rrEntry{dns.TypeA, fmt.Sprintf("%s.%s", t.Service, tail), ip})
+		}
+
+		includedIps[ip] = true
+	}
 
 	// SRV records for each port mapping ("SRV _service._tcp.domain. IP PORT")
+	// jsumali: disabling for now, does not output correctly with internal ips with multiple exposed ports
+
+	/*
 	for _, p := range t.Ports {
 		val := fmt.Sprintf("%s:%d", p.HostIP, p.HostPort)
 		l = append(l, rrEntry{dns.TypeSRV, fmt.Sprintf("_%s._%s.%s", t.Service, p.Proto, tail), val})
 	}
+	*/
 	return l
 }
 

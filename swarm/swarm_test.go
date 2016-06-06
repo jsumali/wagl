@@ -82,14 +82,22 @@ func TestGetTasksPrivate(t *testing.T) {
 			Service: "api",
 			Domain:  "billing",
 			Ports: []task.Port{{
+					HostIP:   net.IPv4(192, 168, 99, 103),
+					HostPort: 8000,
+					Proto:    "tcp",
+					Type:	  task.ExternalPort,
+				},
+				{
 					HostIP:   net.IPv4(10, 25, 0, 8),
 					HostPort: 80,
 					Proto:    "tcp",
+					Type:	  task.InternalPort,
 				},
 				{
 					HostIP:   net.IPv4(10, 25, 0, 8),
 					HostPort: 443,
 					Proto:    "tcp",
+					Type:	  task.InternalPort,
 				},
 			},
 		},
