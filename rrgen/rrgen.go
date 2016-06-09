@@ -69,9 +69,13 @@ func getTaskRRs(domain string, t task.Task) []rrEntry {
 		}
 
 		if p.Type == task.InternalPort {
-			l = append(l, rrEntry{dns.TypeA, fmt.Sprintf("%s.%s.%s", t.Service, "internal", tail), ip})
-		} else {
 			l = append(l, rrEntry{dns.TypeA, fmt.Sprintf("%s.%s", t.Service, tail), ip})
+		} else {
+			if t.ExternalSubdomain != "" {
+				l = append(l, rrEntry{dns.TypeA, fmt.Sprintf("%s.%s.%s", t.Service, t.ExternalSubdomain, tail), ip})
+			} else {
+				l = append(l, rrEntry{dns.TypeA, fmt.Sprintf("%s.%s", t.Service, tail), ip})
+			}
 		}
 
 		includedIps[ip] = true

@@ -39,6 +39,7 @@ type Options struct {
 	refreshTimeout  time.Duration
 	stalenessPeriod time.Duration
 	internalNetwork string
+	subdomain		string
 }
 
 func (o *Options) String() string {
@@ -120,6 +121,11 @@ func main() {
 			Value: "",
 			Usage: "the name of a private docker network or overlay",
 		},
+		cli.StringFlag{
+			Name:  "subdomain",
+			Value: "",
+			Usage: "if specified, will prepend to the domain for external addresses e.g. <app>.<subdomain>.<domain>",
+		},
 	}
 	cmd.Action = func(c *cli.Context) {
 		opts := &Options{
@@ -134,6 +140,7 @@ func main() {
 			refreshTimeout:  c.Duration("refresh-timeout"),
 			stalenessPeriod: c.Duration("staleness"),
 			internalNetwork:         c.String("internal-network"),
+			subdomain:		 c.String("subdomain"),
 		}
 		if err := validate(opts); err != nil {
 			log.Fatalf("Error: %v", err)
@@ -200,7 +207,7 @@ func serve(opt *Options) {
 	}
 
 	rrs := rrstore.New()
-	cluster, err := swarm.New(opt.swarmAddr, dockerTLS, opt.internalNetwork)
+	cluster, err := swarm.New(opt.swarmAddr, dockerTLS, opt.internalNetwork, opt.subdomain)
 	if err != nil {
 		log.Fatalf("Error initializing Swarm: %v", err)
 	}

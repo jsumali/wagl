@@ -20,6 +20,7 @@ type Task struct {
 	Ports   []Port // List of container ports mapped to host <IP:port>
 	Service string // Name of the service that groups tasks under the same DNS record
 	Domain  string // Optional, a domain name describing the project name the task belongs to, or the launcher framework/orchestrator.
+	ExternalSubdomain string // Optional, a subdomain to prepend to the fqdn
 }
 
 // Port describes network port of a service on the host machine.

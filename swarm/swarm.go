@@ -29,6 +29,7 @@ type Swarm struct {
 	client          *http.Client
 	url             *url.URL
 	internalNetwork string
+	subdomain		string
 }
 
 type networksettings struct {
@@ -60,7 +61,7 @@ type containerPort struct {
 
 // New constructs a client to access a Docker Swarm cluster state. If the cluster
 // does not use TLS, tlsConfig must be nil.
-func New(swarmUrl string, tlsConfig *tls.Config, internalNetwork string) (*Swarm, error) {
+func New(swarmUrl string, tlsConfig *tls.Config, internalNetwork string, subdomain string) (*Swarm, error) {
 	u, err := url.Parse(swarmUrl)
 	if err != nil {
 		return nil, err
@@ -84,6 +85,7 @@ func New(swarmUrl string, tlsConfig *tls.Config, internalNetwork string) (*Swarm
 		client: cl,
 		url:    u,
 		internalNetwork: internalNetwork,
+		subdomain: subdomain,
 	}, nil
 }
 
@@ -121,7 +123,7 @@ func (s *Swarm) Tasks() (task.ClusterState, error) {
 		return nil, err
 	}
 
-	out, err := containersToTasks(ll, s.internalNetwork)
+	out, err := s.containersToTasks(ll)
 	if err != nil {
 		return nil, err
 	}
@@ -158,7 +160,7 @@ func (s *Swarm) listContainers() ([]container, error) {
 
 // containersToTasks strips out unnecessary info from Container type and
 // makes task.Task instances out of given list.
-func containersToTasks(ll []container, internalNetwork string) ([]task.Task, error) {
+func (s *Swarm) containersToTasks(ll []container) ([]task.Task, error) {
 	out := make([]task.Task, len(ll))
 
 	for i, container := range ll {
@@ -172,8 +174,8 @@ func containersToTasks(ll []container, internalNetwork string) ([]task.Task, err
 		// If specified, get internal ports
 		internalPorts := make([]task.Port, 0)
 
-		if internalNetwork != "" {
-			internalPorts, err = privatePorts(container, internalNetwork)
+		if s.internalNetwork != "" {
+			internalPorts, err = privatePorts(container, s.internalNetwork)
 
 			if err != nil {
 				return nil, fmt.Errorf("error parsing ports for container %s (%v): %v", container.Id, container.Names, err)
@@ -190,6 +192,7 @@ func containersToTasks(ll []container, internalNetwork string) ([]task.Task, err
 			Ports:   ports,
 			Service: srv,
 			Domain:  dom,
+			ExternalSubdomain: s.subdomain,
 		}
 	}
 	return out, nil
